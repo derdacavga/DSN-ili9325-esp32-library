@@ -3,6 +3,7 @@
 
 #include <Arduino.h>
 #include <Print.h>
+#include <SPIFFS.h>
 #include "Colors.h" 
 
 #define TFT_D0 22
@@ -20,6 +21,11 @@
 #define TFT_RST 14
 #define TFT_RD 2
 
+#define YP_PIN 32
+#define XM_PIN 23
+#define YM_PIN 34
+#define XP_PIN 35
+
 #define CS_MASK (1UL << TFT_CS)
 #define RS_MASK (1UL << TFT_RS)
 #define WR_MASK (1UL << TFT_WR)
@@ -29,6 +35,43 @@
 #define EM_ID1  (1<<5) 
 #define EM_ID0  (1<<4)
 #define ILI9325_GATE_SCAN_CTRL 0x0060
+
+#define TL_DATUM 0
+#define TC_DATUM 1 
+#define TR_DATUM 2 
+#define ML_DATUM 3
+#define MC_DATUM 4 
+#define MR_DATUM 5 
+#define BL_DATUM 6 
+#define BC_DATUM 7 
+#define BR_DATUM 8 
+
+class ILI9325Driver;
+
+class TFT_Button {
+ public:
+  TFT_Button(void);
+  void initButton(ILI9325Driver *gfx, int16_t x, int16_t y, uint16_t w, uint16_t h,
+                  uint16_t outline, uint16_t fill, uint16_t text,
+                  const char *label, uint8_t textsize);
+
+  void drawButton(bool inverted = false);
+  bool contains(int16_t x, int16_t y);
+  bool isPressed(void);
+  bool justPressed(void);
+  bool justReleased(void);
+
+ private:
+  ILI9325Driver* _tft;
+  int16_t  _x, _y;
+  uint16_t _w, _h;
+  uint16_t _outlinecolor, _fillcolor, _textcolor;
+  char     _label[20];
+  uint8_t  _textsize;
+  bool     _is_pressed;
+  bool     _just_pressed;
+  bool     _just_released;
+};
 
 class ILI9325Driver : public Print {
 
@@ -43,6 +86,23 @@ private:
   uint8_t  _textSize;
   int16_t  _cursorX; 
   int16_t  _cursorY; 
+  uint8_t  _textDatum;
+
+  const uint8_t *_font;
+
+  int32_t  _vp_x;    
+  int32_t  _vp_y;      
+  int32_t  _vp_w;      
+  int32_t  _vp_h;      
+  bool     _vp_enabled;
+
+  uint16_t _touch_cal_x_min, _touch_cal_x_max;
+  uint16_t _touch_cal_y_min, _touch_cal_y_max;
+  bool     _touch_cal_loaded;
+
+  bool readTouch(int16_t &x, int16_t &y, int16_t &z);
+  void drawCrosshair(int16_t x, int16_t y, uint16_t color);
+  void waitForTouch(int16_t &x, int16_t &y);
 
   struct MaskPair {
      uint32_t mask_set;
@@ -71,6 +131,7 @@ public:
   uint16_t color565(uint8_t r, uint8_t g, uint8_t b);
 
   void begin();
+  void init();
   void setRotation(uint8_t rotation);
   void setVerticalScroll(uint16_t y_scroll);
   uint16_t width() const { return _width; }
@@ -116,9 +177,15 @@ public:
   void setTextColor(uint16_t fgColor, uint16_t bgColor);
 
   void setTextSize(uint8_t size);
+
   uint8_t getTextSize() const { return _textSize; }
   void setCursor(int16_t x, int16_t y);
-
+  void setTextDatum(uint8_t datum);
+  void setTextFont(uint8_t font_number);
+  int16_t drawString(const char *string, int16_t x, int16_t y);
+  int16_t drawString(const String &string, int16_t x, int16_t y);
+  int16_t textWidth(const char *string);
+  int16_t textWidth(const String &string);
   int16_t getCursorX() const;
   int16_t getCursorY() const;
 
@@ -132,8 +199,21 @@ public:
   void drawText(int16_t x, int16_t y, const char* text);
   void drawText(int16_t x, int16_t y, const char* text, uint16_t color, uint16_t bgcolor, uint8_t size);
 
+  void pushImage(uint16_t x, uint16_t y, uint16_t w, uint16_t h, const uint16_t* data);
+
   void drawImage(uint16_t x, uint16_t y, uint16_t w, uint16_t h, const uint16_t* data);
   void drawImagePGM(uint16_t x, uint16_t y, uint16_t w, uint16_t h, const uint16_t* data);
+
+  void setViewport(int32_t x, int32_t y, int32_t w, int32_t h);
+  void resetViewport(void);
+  bool isViewport(void);
+
+  bool getTouch(uint16_t *x, uint16_t *y, uint16_t threshold = 600);
+  uint16_t calibrateTouch(uint16_t *calData, uint16_t color, uint16_t b_color, uint8_t size);
+  bool loadTouchCalibration(void);
+  void saveTouchCalibration(void);
+  void setTouch(uint16_t *calData);
+
 };
 
 #endif
