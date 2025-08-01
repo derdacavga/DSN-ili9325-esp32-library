@@ -6,19 +6,23 @@
 #include "Colors.h" 
 
 #define TFT_D0 22
-#define TFT_D1 13
+#define TFT_D1 18
 #define TFT_D2 26
 #define TFT_D3 25
 #define TFT_D4 17
 #define TFT_D5 16
 #define TFT_D6 27
-#define TFT_D7 14
+#define TFT_D7 5
 
-#define TFT_RS 15
+#define TFT_RS 19
 #define TFT_WR 4
-#define TFT_CS 33
-#define TFT_RST 32
+#define TFT_CS 21
+#define TFT_RST 14
 #define TFT_RD 2
+
+#define CS_MASK (1UL << TFT_CS)
+#define RS_MASK (1UL << TFT_RS)
+#define WR_MASK (1UL << TFT_WR)
 
 #define ILI9325_ENTRY_MODE    0x0003
 #define EM_AM   (1<<6)  
@@ -59,7 +63,8 @@ private:
   void drawCircleHelper(int16_t x0, int16_t y0, int16_t r, uint8_t cornername, uint16_t color);
 
   void fillRect_nodcs(int16_t x, int16_t y, int16_t w, int16_t h, uint16_t color);
-  
+  void drawPixel_nodcs(uint16_t x, uint16_t y, uint16_t color);
+
 public:
   ILI9325Driver();
 
@@ -74,6 +79,8 @@ public:
   
   void startWrite(void);
   void endWrite(void);
+
+  void pushBlock(uint16_t color, uint32_t len);
 
   static void init_masks();
   void write8(uint8_t val);
