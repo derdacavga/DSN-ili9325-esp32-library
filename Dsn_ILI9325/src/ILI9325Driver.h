@@ -5,7 +5,7 @@
 #include <Print.h>
 #include "Colors.h" 
 
-#define TFT_D0 12
+#define TFT_D0 22
 #define TFT_D1 13
 #define TFT_D2 26
 #define TFT_D3 25
@@ -24,18 +24,22 @@
 #define EM_AM   (1<<6)  
 #define EM_ID1  (1<<5) 
 #define EM_ID0  (1<<4)
-// #define EM_DFM  (1<<2)  // Data Format for Frame Memory
-// #define EM_TRI  (1<<1)  // Interface for Triangle Area Filling
 #define ILI9325_GATE_SCAN_CTRL 0x0060
 
 class ILI9325Driver : public Print {
 
 private:
+  uint16_t _width;
+  uint16_t _height;
+  uint8_t  _rotation;
+  uint16_t _rawW;
+  uint16_t _rawH;
   uint16_t _textColor;
   uint16_t _textBGColor;
   uint8_t  _textSize;
   int16_t  _cursorX; 
   int16_t  _cursorY; 
+
   struct MaskPair {
      uint32_t mask_set;
      uint32_t mask_clr;
@@ -53,22 +57,24 @@ private:
   void _swap_uint16_t(uint16_t &a, uint16_t &b);
   void fillCircleHelper(int16_t x0, int16_t y0, int16_t r, uint8_t cornername, int16_t delta, uint16_t color);
   void drawCircleHelper(int16_t x0, int16_t y0, int16_t r, uint8_t cornername, uint16_t color);
+
+  void fillRect_nodcs(int16_t x, int16_t y, int16_t w, int16_t h, uint16_t color);
   
 public:
   ILI9325Driver();
-  
-  uint16_t _width;
-  uint16_t _height;
-  uint8_t  _rotation;
-  uint16_t _rawW;
-  uint16_t _rawH;
+
+  uint16_t color565(uint8_t r, uint8_t g, uint8_t b);
 
   void begin();
   void setRotation(uint8_t rotation);
+  void setVerticalScroll(uint16_t y_scroll);
   uint16_t width() const { return _width; }
   uint16_t height() const { return _height; }
   uint8_t getRotation() const { return _rotation; }
   
+  void startWrite(void);
+  void endWrite(void);
+
   static void init_masks();
   void write8(uint8_t val);
 
