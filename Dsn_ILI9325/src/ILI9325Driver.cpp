@@ -12,8 +12,6 @@ uint16_t ILI9325Driver::color565(uint8_t r, uint8_t g, uint8_t b) {
 #define ILI9325_RAW_WIDTH 240
 #define ILI9325_RAW_HEIGHT 320
 
-#define WR_MASK (1UL << TFT_WR)
-
 ILI9325Driver::ILI9325Driver() {
     _rawW = ILI9325_RAW_WIDTH;
     _rawH = ILI9325_RAW_HEIGHT;
@@ -216,7 +214,7 @@ void ILI9325Driver::setData(uint8_t data) {
 }
 
 void ILI9325Driver::writeCommand(uint16_t cmd) {
-  digitalWrite(TFT_RS, LOW);
+  REG_WRITE(GPIO_OUT_W1TC_REG, RS_MASK);
   write8(cmd >> 8);
   pulseWR();
   write8(cmd & 0xFF);
@@ -224,7 +222,8 @@ void ILI9325Driver::writeCommand(uint16_t cmd) {
 }
 
 void ILI9325Driver::writeData(uint16_t data) {
-  digitalWrite(TFT_RS, HIGH);
+  REG_WRITE(GPIO_OUT_W1TS_REG, RS_MASK);
+
   write8(data >> 8); 
   pulseWR();
   write8(data & 0xFF);
@@ -232,26 +231,15 @@ void ILI9325Driver::writeData(uint16_t data) {
 }
 
 void ILI9325Driver::pushColor(uint16_t color) {
+    startWrite();
     writeData(color);
+    endWrite();
 }
 
 void ILI9325Driver::pushColor(uint16_t color, uint16_t count) {
-  digitalWrite(TFT_RS, HIGH);
-  uint8_t hi = color >> 8;
-  uint8_t lo = color & 0xFF;
-  while (count--) {
-    setData(hi); pulseWR();
-    setData(lo); pulseWR();
-  }
-}
-
-void ILI9325Driver::writeNcolors(uint16_t color, uint32_t len) {
-    uint8_t hi = color >> 8;
-    uint8_t lo = color & 0xFF;
-    for (uint32_t i = 0; i < len; i++) {
-        setData(hi); pulseWR();
-        setData(lo); pulseWR();
-    }
+  startWrite();
+  pushBlock(color, count);
+  endWrite();
 }
 
 void ILI9325Driver::setVerticalScroll(uint16_t y_scroll) {
@@ -261,34 +249,13 @@ void ILI9325Driver::setVerticalScroll(uint16_t y_scroll) {
 }
 
 void ILI9325Driver::fillScreen(uint16_t color) {
-    startWrite();
-    writeCommand(0x0050); writeData(0);           // H Start
-    writeCommand(0x0051); writeData(_rawW - 1);   // H End
-    writeCommand(0x0052); writeData(0);           // V Start  
-    writeCommand(0x0053); writeData(_rawH - 1);   // V End
-    
-    writeCommand(0x0020); writeData(0);
-    writeCommand(0x0021); writeData(0);
-    writeCommand(0x0022); // GRAM Write
-    
-    digitalWrite(TFT_RS, HIGH); 
-    
-    uint8_t hi = color >> 8;
-    uint8_t lo = color & 0xFF;
-    uint32_t numPixels = (uint32_t)_rawW * _rawH;
-    for (uint32_t i = 0; i < numPixels; i++) {
-        setData(hi); pulseWR();
-        setData(lo); pulseWR();
-    }
-    endWrite();
+    fillRect(0, 0, _width, _height, color);
 }
 
 void ILI9325Driver::drawPixel(uint16_t x, uint16_t y, uint16_t color) {
-    if (x >= _width || y >= _height || x < 0 || y < 0) return; 
-        startWrite();
-        setAddrWindow(x, y, x, y);
-        writeData(color);
-        endWrite();
+    startWrite();
+    drawPixel_nodcs(x, y, color);
+    endWrite();
 }
 
 void ILI9325Driver::drawFastHLine(uint16_t x, uint16_t y, uint16_t w, uint16_t color) {
@@ -297,7 +264,7 @@ void ILI9325Driver::drawFastHLine(uint16_t x, uint16_t y, uint16_t w, uint16_t c
 
   startWrite();
   setAddrWindow(x, y, x + w - 1, y);
-  digitalWrite(TFT_RS, HIGH);
+  REG_WRITE(GPIO_OUT_W1TS_REG, RS_MASK);
   uint8_t hi = color >> 8;
   uint8_t lo = color & 0xFF;
   while (w--) {
@@ -313,7 +280,7 @@ void ILI9325Driver::drawFastVLine(int16_t x, int16_t y, int16_t h, uint16_t colo
 
     startWrite();
     setAddrWindow(x, y, x, y + h - 1);
-    digitalWrite(TFT_RS, HIGH);
+    REG_WRITE(GPIO_OUT_W1TS_REG, RS_MASK);
     uint8_t hi = color >> 8;
     uint8_t lo = color & 0xFF;
     while (h--) {
@@ -324,22 +291,12 @@ void ILI9325Driver::drawFastVLine(int16_t x, int16_t y, int16_t h, uint16_t colo
 }
 
 void ILI9325Driver::fillRect_nodcs(int16_t x, int16_t y, int16_t w, int16_t h, uint16_t color) {
-  if (x >= _width || y >= _height || w <= 0 || h <= 0) return;
-  if (x + w -1 >= _width)  w = _width  - x;
-  if (y + h -1 >= _height) h = _height - y;
+  if (x > _width || y > _height) return; 
+  if (x + w > _width) w = _width - x;
+  if (y + h > _height) h = _height - y;
   
   setAddrWindow(x, y, x + w - 1, y + h - 1);
-
-  digitalWrite(TFT_RS, HIGH);
-  
-  uint8_t hi = color >> 8;
-  uint8_t lo = color & 0xFF;
-  uint32_t numPixels = (uint32_t)w * h;
-
-  for (uint32_t i = 0; i < numPixels; i++) {
-    setData(hi); pulseWR();
-    setData(lo); pulseWR();
-  }
+  pushBlock(color, (uint32_t)w * h); 
 }
 
 void ILI9325Driver::fillRect(int16_t x, int16_t y, int16_t w, int16_t h, uint16_t color) {
@@ -381,11 +338,12 @@ void ILI9325Driver::drawLine(int16_t x0, int16_t y0, int16_t x1, int16_t y1, uin
     } else {
         ystep = -1;
     }
+    startWrite(); 
     for (; x0 <= x1; x0++) {
         if (steep) {
-            drawPixel(y0, x0, color);
+            drawPixel_nodcs(y0, x0, color); 
         } else {
-            drawPixel(x0, y0, color);
+            drawPixel_nodcs(x0, y0, color); 
         }
         err -= dy;
         if (err < 0) {
@@ -393,6 +351,7 @@ void ILI9325Driver::drawLine(int16_t x0, int16_t y0, int16_t x1, int16_t y1, uin
             err += dx;
         }
     }
+    endWrite();
 }
 
 void ILI9325Driver::drawRect(int16_t x, int16_t y, int16_t w, int16_t h, uint16_t color) {
@@ -611,37 +570,41 @@ int16_t ILI9325Driver::getCursorY() const {
 void ILI9325Driver::drawChar(int16_t x, int16_t y, char c, uint16_t color, uint16_t bg, uint8_t size) {
   if (c < ' ' || c > '~') { 
       if (bg != color) { 
-        fillRect(x, y, 6 * size, 8 * size, bg);
+        fillRect(x, y, 6 * size, 8 * size, bg); 
       }
       return;
   }
-    startWrite();
+
+  startWrite(); 
+
   for (int8_t i = 0; i < 5; i++) { 
     uint8_t line = font5x7[c - ' '][i]; 
     for (int8_t j = 0; j < 8; j++, line >>= 1) { 
       if (line & 1) { 
         if (size == 1) {
-          drawPixel(x + i, y + j, color);
+          drawPixel_nodcs(x + i, y + j, color); 
         } else {
-          fillRect(x + i * size, y + j * size, size, size, color);
+          fillRect_nodcs(x + i * size, y + j * size, size, size, color); 
         }
       } else if (bg != color) { 
         if (size == 1) {
-          drawPixel(x + i, y + j, bg);
+          drawPixel_nodcs(x + i, y + j, bg); 
         } else {
-          fillRect(x + i * size, y + j * size, size, size, bg);
+          fillRect_nodcs(x + i * size, y + j * size, size, size, bg); 
         }
       }
     }
   }
+  
   if (bg != color) { 
       if (size == 1) {
-        drawFastVLine(x + 5, y, 8, bg);
+          fillRect_nodcs(x + 5, y, 1, 8, bg);
       } else {
-          fillRect(x + 5 * size, y, size, 8 * size, bg);
+          fillRect_nodcs(x + 5 * size, y, size, 8 * size, bg);
       }
   }
-  endWrite();
+
+  endWrite(); 
 }
 
 void ILI9325Driver::drawChar(int16_t x, int16_t y, char c) {
@@ -715,7 +678,7 @@ void ILI9325Driver::drawImage(uint16_t x, uint16_t y, uint16_t w, uint16_t h, co
   startWrite();
   setAddrWindow(x, y, x + w - 1, y + h - 1);
 
-  digitalWrite(TFT_RS, HIGH);
+  REG_WRITE(GPIO_OUT_W1TS_REG, RS_MASK);
 
   uint32_t totalPixels = (uint32_t)w * h;
   
@@ -733,32 +696,59 @@ void ILI9325Driver::drawImage(uint16_t x, uint16_t y, uint16_t w, uint16_t h, co
 
 void ILI9325Driver::drawImagePGM(uint16_t x, uint16_t y, uint16_t w, uint16_t h, const uint16_t* data) {
   if (x >= _width || y >= _height || w == 0 || h == 0) return;
-  if (x + w - 1 >= _width)  w = _width  - x;
+  if (x + w - 1 >= _width) w = _width - x;
   if (y + h - 1 >= _height) h = _height - y;
+
+  startWrite();
 
   setAddrWindow(x, y, x + w - 1, y + h - 1);
 
-  digitalWrite(TFT_RS, HIGH);
-  digitalWrite(TFT_CS, LOW);
+  REG_WRITE(GPIO_OUT_W1TS_REG, RS_MASK); 
 
   uint32_t totalPixels = (uint32_t)w * h;
-  
   for (uint32_t i = 0; i < totalPixels; i++) {
     uint16_t color = pgm_read_word(&data[i]);
-    
     write8(color >> 8);
     pulseWR();
     write8(color & 0xFF);
     pulseWR();
   }
 
-  digitalWrite(TFT_CS, HIGH);
+  endWrite(); 
 }
 
 void ILI9325Driver::startWrite(void) {
-  digitalWrite(TFT_CS, LOW);
+    REG_WRITE(GPIO_OUT_W1TC_REG, CS_MASK);
 }
 
 void ILI9325Driver::endWrite(void) {
-  digitalWrite(TFT_CS, HIGH);
+    REG_WRITE(GPIO_OUT_W1TS_REG, CS_MASK);
+}
+
+void ILI9325Driver::drawPixel_nodcs(uint16_t x, uint16_t y, uint16_t color) {
+    if (x >= _width || y >= _height || x < 0 || y < 0) return; 
+    setAddrWindow(x, y, x, y);
+    writeData(color);
+}
+
+void ILI9325Driver::pushBlock(uint16_t color, uint32_t len) {
+    uint8_t hi = color >> 8;
+    uint8_t lo = color & 0xFF;
+
+    const MaskPair& m_hi = masks[hi];
+    const MaskPair& m_lo = masks[lo];
+
+    REG_WRITE(GPIO_OUT_W1TS_REG, RS_MASK);
+
+    while(len--) {
+        REG_WRITE(GPIO_OUT_W1TS_REG, m_hi.mask_set);
+        REG_WRITE(GPIO_OUT_W1TC_REG, m_hi.mask_clr);
+        REG_WRITE(GPIO_OUT_W1TC_REG, WR_MASK);
+        REG_WRITE(GPIO_OUT_W1TS_REG, WR_MASK);
+
+        REG_WRITE(GPIO_OUT_W1TS_REG, m_lo.mask_set);
+        REG_WRITE(GPIO_OUT_W1TC_REG, m_lo.mask_clr);
+        REG_WRITE(GPIO_OUT_W1TC_REG, WR_MASK);
+        REG_WRITE(GPIO_OUT_W1TS_REG, WR_MASK);
+    }
 }
