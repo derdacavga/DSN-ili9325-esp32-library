@@ -9,7 +9,8 @@ void setup() {
   while (!Serial);
   Serial.println(""); Serial.println("");
   Serial.println("Dsn ILI9325 library Test!"); 
-  tft.begin();
+ 
+	tft.begin();
 }
 
 void loop(void)
@@ -103,7 +104,7 @@ void loop(void)
 	tft.setTextColor(TFT_MAGENTA);
 	tft.setTextSize(2);
 
- 	tft.println(F("   TFT_eSPI test"));
+ 	tft.println(F("ILI9325 by DSN"));
 
 	tft.setTextSize(1);
 	tft.setTextColor(TFT_WHITE);
@@ -227,12 +228,6 @@ static inline uint32_t micros_start()
 
 uint32_t testHaD()
 {
-	// pseudo-code for cheesy RLE
-	// start with color1
-	// while more input data remaining
-	// 	count =  0nnnnnnn = 1 byte or 1nnnnnnn nnnnnnnn 2 bytes (0 - 32767)
-	// 	repeat color count times
-	// 	toggle color1/color2
 	static const uint8_t HaD_240x320[] PROGMEM =
 	{
 		0xb9, 0x50, 0x0e, 0x80, 0x93, 0x0e, 0x41, 0x11, 0x80, 0x8d, 0x11, 0x42, 0x12, 0x80, 0x89, 0x12, 
@@ -334,7 +329,7 @@ uint32_t testHaD()
 		{
 			cnt = pgm_read_byte(cmp++);
 			if (cnt & 0x80) cnt = ((cnt & 0x7f) << 8) | pgm_read_byte(cmp++);
-			tft.pushColor(curcolor, cnt);	// PDQ_GFX has count
+			tft.pushColor(curcolor, cnt);	
 			curcolor ^= color;
 		}
 		tft.endWrite();
@@ -350,7 +345,6 @@ uint32_t testHaD()
 uint32_t testFillScreen()
 {
 	uint32_t start = micros_start();
-    // Shortened this tedious test!
 		tft.fillScreen(TFT_WHITE);
 		tft.fillScreen(TFT_RED);
 		tft.fillScreen(TFT_GREEN);
@@ -421,7 +415,6 @@ uint32_t testPixels()
 	return micros() - start;
 }
 
-
 uint32_t testLines(uint16_t color)
 {
 	uint32_t start, t;
@@ -448,7 +441,7 @@ uint32_t testLines(uint16_t color)
 		tft.drawLine(x1, y1, x2, y2, color);
 	}
 
-	t = micros() - start; // fillScreen doesn't count against timing
+	t = micros() - start; 
 
 	tft.fillScreen(TFT_BLACK);
 
@@ -571,7 +564,6 @@ uint32_t testFilledRects(uint16_t color1, uint16_t color2)
 
 		t += micros() - start;
 
-		// Outlines are not included in timing results
 		tft.drawRect(cx-i2, cy-i2, i, i, color2);
 	}
 
@@ -605,8 +597,6 @@ uint32_t testCircles(uint8_t radius, uint16_t color)
 	int32_t w = tft.width() + radius;
 	int32_t h = tft.height() + radius;
 
-	// Screen is not cleared for this one -- this is
-	// intentional and does not affect the reported time.
 	start = micros_start();
 
 	for (x = 0; x < w; x += r2)
