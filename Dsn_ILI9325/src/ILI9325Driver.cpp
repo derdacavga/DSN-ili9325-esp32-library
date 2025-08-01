@@ -5,6 +5,10 @@
 #include "Colors.h"
 #include "font5x7.h"
 
+uint16_t ILI9325Driver::color565(uint8_t r, uint8_t g, uint8_t b) {
+  return ((r & 0xF8) << 8) | ((g & 0xFC) << 3) | (b >> 3);
+}
+
 #define ILI9325_RAW_WIDTH 240
 #define ILI9325_RAW_HEIGHT 320
 
@@ -43,6 +47,8 @@ void ILI9325Driver::begin() {
   digitalWrite(TFT_RST, HIGH);
   delay(120);
 
+    startWrite();
+
   writeCommand(0x00E5);  writeData(0x78F0);  writeCommand(0x0001);  writeData(0x0100);
   writeCommand(0x0002);  writeData(0x0200);  writeCommand(0x0003);  writeData(0x1030);
   writeCommand(0x0004);  writeData(0x0000);  writeCommand(0x0008);  writeData(0x0207);
@@ -51,14 +57,24 @@ void ILI9325Driver::begin() {
   writeCommand(0x000F);  writeData(0x0000);  writeCommand(0x0010);  writeData(0x0000);
   writeCommand(0x0011);  writeData(0x0007);  writeCommand(0x0012);  writeData(0x0000);
   writeCommand(0x0013);  writeData(0x0000);
-  delay(50);
+
+  endWrite(); 
+  delay(50);   
+  startWrite(); 
+
   writeCommand(0x0010);  writeData(0x1690);  writeCommand(0x0011);  writeData(0x0227);
-  delay(50);
+  endWrite();  
+  delay(50);   
+  startWrite(); 
   writeCommand(0x0012);  writeData(0x000C);
-  delay(50);
+  endWrite();   
+  delay(50);   
+  startWrite(); 
   writeCommand(0x0013);  writeData(0x1200);  writeCommand(0x0029);  writeData(0x000A);
   writeCommand(0x002B);  writeData(0x000D);
-  delay(50);
+  endWrite();  
+  delay(50);  
+  startWrite(); 
   writeCommand(0x0020);  writeData(0x0000);  writeCommand(0x0021);  writeData(0x0000);
 
   writeCommand(0x0030);  writeData(0x0000);  writeCommand(0x0031);  writeData(0x0506);
@@ -80,6 +96,7 @@ void ILI9325Driver::begin() {
   writeCommand(0x0090);  writeData(0x0010);  writeCommand(0x0092);  writeData(0x0600);
   
   writeCommand(0x0007);  writeData(0x0133);
+  endWrite();
   delay(50);
 
   fillScreen(TFT_BLACK);
@@ -200,22 +217,18 @@ void ILI9325Driver::setData(uint8_t data) {
 
 void ILI9325Driver::writeCommand(uint16_t cmd) {
   digitalWrite(TFT_RS, LOW);
-  digitalWrite(TFT_CS, LOW);
   write8(cmd >> 8);
   pulseWR();
   write8(cmd & 0xFF);
   pulseWR();
-  digitalWrite(TFT_CS, HIGH);
 }
 
 void ILI9325Driver::writeData(uint16_t data) {
   digitalWrite(TFT_RS, HIGH);
-  digitalWrite(TFT_CS, LOW);
   write8(data >> 8); 
   pulseWR();
   write8(data & 0xFF);
   pulseWR();
-  digitalWrite(TFT_CS, HIGH);
 }
 
 void ILI9325Driver::pushColor(uint16_t color) {
@@ -224,14 +237,12 @@ void ILI9325Driver::pushColor(uint16_t color) {
 
 void ILI9325Driver::pushColor(uint16_t color, uint16_t count) {
   digitalWrite(TFT_RS, HIGH);
-  digitalWrite(TFT_CS, LOW);
   uint8_t hi = color >> 8;
   uint8_t lo = color & 0xFF;
   while (count--) {
     setData(hi); pulseWR();
     setData(lo); pulseWR();
   }
-  digitalWrite(TFT_CS, HIGH);
 }
 
 void ILI9325Driver::writeNcolors(uint16_t color, uint32_t len) {
@@ -243,7 +254,14 @@ void ILI9325Driver::writeNcolors(uint16_t color, uint32_t len) {
     }
 }
 
+void ILI9325Driver::setVerticalScroll(uint16_t y_scroll) {
+    y_scroll %= _rawH; 
+    writeCommand(0x006A);
+    writeData(y_scroll);
+}
+
 void ILI9325Driver::fillScreen(uint16_t color) {
+    startWrite();
     writeCommand(0x0050); writeData(0);           // H Start
     writeCommand(0x0051); writeData(_rawW - 1);   // H End
     writeCommand(0x0052); writeData(0);           // V Start  
@@ -254,7 +272,6 @@ void ILI9325Driver::fillScreen(uint16_t color) {
     writeCommand(0x0022); // GRAM Write
     
     digitalWrite(TFT_RS, HIGH); 
-    digitalWrite(TFT_CS, LOW);  
     
     uint8_t hi = color >> 8;
     uint8_t lo = color & 0xFF;
@@ -263,53 +280,50 @@ void ILI9325Driver::fillScreen(uint16_t color) {
         setData(hi); pulseWR();
         setData(lo); pulseWR();
     }
-    
-    digitalWrite(TFT_CS, HIGH); 
+    endWrite();
 }
 
 void ILI9325Driver::drawPixel(uint16_t x, uint16_t y, uint16_t color) {
     if (x >= _width || y >= _height || x < 0 || y < 0) return; 
-    
-    uint16_t phy_x = x, phy_y = y;
-    mapXY(phy_x, phy_y);
-    
-    writeCommand(0x0020); writeData(phy_x);  writeCommand(0x0021); writeData(phy_y); 
-    writeCommand(0x0022); writeData(color);
+        startWrite();
+        setAddrWindow(x, y, x, y);
+        writeData(color);
+        endWrite();
 }
 
 void ILI9325Driver::drawFastHLine(uint16_t x, uint16_t y, uint16_t w, uint16_t color) {
   if (y >= _height || x >=_width || w == 0) return;
   if ((x + w - 1) >= _width) w = _width - x;
 
+  startWrite();
   setAddrWindow(x, y, x + w - 1, y);
   digitalWrite(TFT_RS, HIGH);
-  digitalWrite(TFT_CS, LOW);
   uint8_t hi = color >> 8;
   uint8_t lo = color & 0xFF;
   while (w--) {
     setData(hi); pulseWR();
     setData(lo); pulseWR();
   }
-  digitalWrite(TFT_CS, HIGH);
+  endWrite();
 }
 
 void ILI9325Driver::drawFastVLine(int16_t x, int16_t y, int16_t h, uint16_t color) {
     if (x >= _width || y >= _height || h == 0) return;
     if ((y + h - 1) >= _height) h = _height - y;
 
+    startWrite();
     setAddrWindow(x, y, x, y + h - 1);
     digitalWrite(TFT_RS, HIGH);
-    digitalWrite(TFT_CS, LOW);
     uint8_t hi = color >> 8;
     uint8_t lo = color & 0xFF;
     while (h--) {
       setData(hi); pulseWR();
       setData(lo); pulseWR();
     }
-    digitalWrite(TFT_CS, HIGH);
+    endWrite();
 }
 
-void ILI9325Driver::fillRect(int16_t x, int16_t y, int16_t w, int16_t h, uint16_t color) {
+void ILI9325Driver::fillRect_nodcs(int16_t x, int16_t y, int16_t w, int16_t h, uint16_t color) {
   if (x >= _width || y >= _height || w <= 0 || h <= 0) return;
   if (x + w -1 >= _width)  w = _width  - x;
   if (y + h -1 >= _height) h = _height - y;
@@ -317,7 +331,6 @@ void ILI9325Driver::fillRect(int16_t x, int16_t y, int16_t w, int16_t h, uint16_
   setAddrWindow(x, y, x + w - 1, y + h - 1);
 
   digitalWrite(TFT_RS, HIGH);
-  digitalWrite(TFT_CS, LOW);
   
   uint8_t hi = color >> 8;
   uint8_t lo = color & 0xFF;
@@ -327,7 +340,12 @@ void ILI9325Driver::fillRect(int16_t x, int16_t y, int16_t w, int16_t h, uint16_
     setData(hi); pulseWR();
     setData(lo); pulseWR();
   }
-  digitalWrite(TFT_CS, HIGH);
+}
+
+void ILI9325Driver::fillRect(int16_t x, int16_t y, int16_t w, int16_t h, uint16_t color) {
+    startWrite();
+    fillRect_nodcs(x, y, w, h, color);
+    endWrite();
 }
 
 void ILI9325Driver::_swap_int16_t(int16_t &a, int16_t &b) { 
@@ -593,11 +611,11 @@ int16_t ILI9325Driver::getCursorY() const {
 void ILI9325Driver::drawChar(int16_t x, int16_t y, char c, uint16_t color, uint16_t bg, uint8_t size) {
   if (c < ' ' || c > '~') { 
       if (bg != color) { 
-          fillRect(x, y, 6 * size, 8 * size, bg);
+        fillRect(x, y, 6 * size, 8 * size, bg);
       }
       return;
   }
-
+    startWrite();
   for (int8_t i = 0; i < 5; i++) { 
     uint8_t line = font5x7[c - ' '][i]; 
     for (int8_t j = 0; j < 8; j++, line >>= 1) { 
@@ -618,13 +636,12 @@ void ILI9325Driver::drawChar(int16_t x, int16_t y, char c, uint16_t color, uint1
   }
   if (bg != color) { 
       if (size == 1) {
-          for (int8_t j = 0; j < 8; j++) {
-              drawPixel(x + 5, y + j, bg);
-          }
+        drawFastVLine(x + 5, y, 8, bg);
       } else {
           fillRect(x + 5 * size, y, size, 8 * size, bg);
       }
   }
+  endWrite();
 }
 
 void ILI9325Driver::drawChar(int16_t x, int16_t y, char c) {
@@ -695,10 +712,10 @@ void ILI9325Driver::drawImage(uint16_t x, uint16_t y, uint16_t w, uint16_t h, co
   if (x + w - 1 >= _width)  w = _width  - x;
   if (y + h - 1 >= _height) h = _height - y;
 
+  startWrite();
   setAddrWindow(x, y, x + w - 1, y + h - 1);
 
   digitalWrite(TFT_RS, HIGH);
-  digitalWrite(TFT_CS, LOW);
 
   uint32_t totalPixels = (uint32_t)w * h;
   
@@ -711,7 +728,7 @@ void ILI9325Driver::drawImage(uint16_t x, uint16_t y, uint16_t w, uint16_t h, co
     write8(color & 0xFF);
     pulseWR();
   }
-  digitalWrite(TFT_CS, HIGH);
+  endWrite();
 }
 
 void ILI9325Driver::drawImagePGM(uint16_t x, uint16_t y, uint16_t w, uint16_t h, const uint16_t* data) {
@@ -735,5 +752,13 @@ void ILI9325Driver::drawImagePGM(uint16_t x, uint16_t y, uint16_t w, uint16_t h,
     pulseWR();
   }
 
+  digitalWrite(TFT_CS, HIGH);
+}
+
+void ILI9325Driver::startWrite(void) {
+  digitalWrite(TFT_CS, LOW);
+}
+
+void ILI9325Driver::endWrite(void) {
   digitalWrite(TFT_CS, HIGH);
 }
