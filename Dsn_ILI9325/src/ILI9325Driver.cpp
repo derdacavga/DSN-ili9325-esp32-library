@@ -23,6 +23,13 @@ ILI9325Driver::ILI9325Driver() {
     _textSize = 1;
     _textColor = TFT_WHITE; 
     _textBGColor = TFT_BLACK;
+    _textDatum = TL_DATUM;
+    _vp_enabled = false;
+    _font = font5x7[0];
+}
+
+void ILI9325Driver::init(){
+    begin();
 }
 
 void ILI9325Driver::begin() {
@@ -146,6 +153,14 @@ void ILI9325Driver::mapXY(uint16_t &x, uint16_t &y) const {
 }
 
 void ILI9325Driver::setAddrWindow(uint16_t x0, uint16_t y0, uint16_t x1, uint16_t y1) {
+
+    if (_vp_enabled) {
+        x0 += _vp_x;
+        y0 += _vp_y;
+        x1 += _vp_x;
+        y1 += _vp_y;
+    }
+
     uint16_t phy_x0 = x0, phy_y0 = y0;
     uint16_t phy_x1 = x1, phy_y1 = y1;
 
@@ -578,7 +593,7 @@ void ILI9325Driver::drawChar(int16_t x, int16_t y, char c, uint16_t color, uint1
   startWrite(); 
 
   for (int8_t i = 0; i < 5; i++) { 
-    uint8_t line = font5x7[c - ' '][i]; 
+    uint8_t line = _font[((c - ' ') * 5) + i];
     for (int8_t j = 0; j < 8; j++, line >>= 1) { 
       if (line & 1) { 
         if (size == 1) {
@@ -751,4 +766,354 @@ void ILI9325Driver::pushBlock(uint16_t color, uint32_t len) {
         REG_WRITE(GPIO_OUT_W1TC_REG, WR_MASK);
         REG_WRITE(GPIO_OUT_W1TS_REG, WR_MASK);
     }
+}
+
+void ILI9325Driver::pushImage(uint16_t x, uint16_t y, uint16_t w, uint16_t h, const uint16_t* data) {
+  uint32_t len = (uint32_t)w * h;
+  
+  REG_WRITE(GPIO_OUT_W1TS_REG, RS_MASK);
+  
+  while (len--) {
+    uint16_t color = *data++;
+    write8(color >> 8);
+    pulseWR();
+    write8(color & 0xFF);
+    pulseWR();
+  }
+}
+
+void ILI9325Driver::setTextDatum(uint8_t datum) {
+  _textDatum = datum;
+}
+
+int16_t ILI9325Driver::drawString(const char *string, int16_t x, int16_t y) {
+  int16_t x_start = x;
+  int16_t y_start = y;
+  uint16_t text_w = 0;
+  uint16_t text_h = 0;
+
+  text_w = strlen(string) * 6 * _textSize;
+  text_h = 8 * _textSize;
+
+  switch (_textDatum) {
+    case TC_DATUM:
+      x_start -= text_w / 2;
+      break;
+    case TR_DATUM:
+      x_start -= text_w;
+      break;
+    case ML_DATUM:
+      x_start = x;
+      y_start -= text_h / 2;
+      break;
+    case MC_DATUM:
+      x_start -= text_w / 2;
+      y_start -= text_h / 2;
+      break;
+    case MR_DATUM:
+      x_start -= text_w;
+      y_start -= text_h / 2;
+      break;
+    case BL_DATUM:
+      x_start = x;
+      y_start -= text_h;
+      break;
+    case BC_DATUM:
+      x_start -= text_w / 2;
+      y_start -= text_h;
+      break;
+    case BR_DATUM:
+      x_start -= text_w;
+      y_start -= text_h;
+      break;
+    case TL_DATUM:
+    default:
+      break;
+  }
+
+  drawText(x_start, y_start, string, _textColor, _textBGColor, _textSize);
+
+  return text_w; 
+}
+
+int16_t ILI9325Driver::drawString(const String &string, int16_t x, int16_t y) {
+  return drawString(string.c_str(), x, y);
+}
+
+bool ILI9325Driver::readTouch(int16_t &x, int16_t &y, int16_t &z) {
+    
+    pinMode(YP_PIN, INPUT);
+    pinMode(YM_PIN, INPUT);
+    digitalWrite(YP_PIN, LOW);
+    digitalWrite(YM_PIN, LOW);
+    
+    pinMode(XP_PIN, OUTPUT);
+    digitalWrite(XP_PIN, HIGH);
+    pinMode(XM_PIN, OUTPUT);
+    digitalWrite(XM_PIN, LOW);
+    
+    delayMicroseconds(20);
+    y = analogRead(YP_PIN);
+
+    pinMode(XP_PIN, INPUT);
+    pinMode(XM_PIN, INPUT);
+    digitalWrite(XP_PIN, LOW);
+    digitalWrite(XM_PIN, LOW);
+
+    pinMode(YP_PIN, OUTPUT);
+    digitalWrite(YP_PIN, HIGH);
+    pinMode(YM_PIN, OUTPUT);
+    digitalWrite(YM_PIN, LOW);
+    
+    delayMicroseconds(20);
+    x = analogRead(XM_PIN);
+
+    pinMode(XP_PIN, OUTPUT);
+    pinMode(YM_PIN, INPUT);
+    digitalWrite(XP_PIN, LOW);
+    digitalWrite(YM_PIN, HIGH); 
+
+    int z1 = analogRead(XM_PIN); 
+    int z2 = analogRead(YP_PIN);
+    
+    z = (4095 - (z2 - z1));
+
+    pinMode(XP_PIN, INPUT);
+    pinMode(YP_PIN, INPUT);
+
+    const int MIN_PRESSURE = 100;
+    return (z > MIN_PRESSURE);
+}
+
+TFT_Button::TFT_Button(void) {
+  _tft = nullptr;
+  _is_pressed = false;
+  _just_pressed = false;
+  _just_released = false;
+}
+
+void TFT_Button::initButton(ILI9325Driver *gfx, int16_t x, int16_t y, uint16_t w, uint16_t h,
+                            uint16_t outline, uint16_t fill, uint16_t text,
+                            const char *label, uint8_t textsize) {
+  _tft = gfx;
+  _x = x; _y = y; _w = w; _h = h;
+  _outlinecolor = outline; _fillcolor = fill; _textcolor = text;
+  _textsize = textsize;
+  strncpy(_label, label, 19);
+  _label[19] = '\0';
+}
+
+void TFT_Button::drawButton(bool inverted) {
+  uint16_t fill, outline, text;
+  if (!inverted) { fill = _fillcolor; outline = _outlinecolor; text = _textcolor; }
+  else { fill = _textcolor; outline = _outlinecolor; text = _fillcolor; }
+
+  _tft->fillRoundRect(_x - (_w / 2), _y - (_h / 2), _w, _h, 5, fill);
+  _tft->drawRoundRect(_x - (_w / 2), _y - (_h / 2), _w, _h, 5, outline);
+  _tft->setTextColor(text);
+  _tft->setTextDatum(MC_DATUM);
+  _tft->setTextSize(_textsize);
+  _tft->drawString(_label, _x, _y);
+}
+
+bool TFT_Button::isPressed(void) {
+  uint16_t touch_x, touch_y;
+  if (_tft->getTouch(&touch_x, &touch_y)) {
+    return contains(touch_x, touch_y);
+  }
+  return false;
+}
+
+bool TFT_Button::justPressed(void) {
+    bool now_pressed = isPressed();
+    _just_pressed = now_pressed && !_is_pressed;
+    _is_pressed = now_pressed;
+    return _just_pressed;
+}
+
+bool TFT_Button::justReleased(void) {
+    bool now_pressed = isPressed();
+    _just_released = !now_pressed && _is_pressed;
+    _is_pressed = now_pressed;
+    return _just_released;
+}
+
+void ILI9325Driver::setViewport(int32_t x, int32_t y, int32_t w, int32_t h) {
+  _vp_x = x;
+  _vp_y = y;
+  _vp_w = w;
+  _vp_h = h;
+  _vp_enabled = true;
+  
+  _width = w;
+  _height = h;
+}
+
+void ILI9325Driver::resetViewport(void) {
+  _vp_enabled = false;
+  
+  setRotation(getRotation()); 
+}
+
+bool ILI9325Driver::isViewport(void) {
+  return _vp_enabled;
+}
+
+int16_t ILI9325Driver::textWidth(const char *string) {
+  if (string == nullptr) return 0;
+  return strlen(string) * 6 * _textSize;
+}
+
+int16_t ILI9325Driver::textWidth(const String &string) {
+  return textWidth(string.c_str());
+}
+
+void ILI9325Driver::setTextFont(uint8_t font_number) {
+  switch (font_number) {
+    case 1: 
+      _font = font5x7[0];
+      break;
+    // case 2:
+    //   #ifdef FONT2_AVAILABLE
+    //     _font = font2[0];
+    //   #endif
+    //   break;
+    // case 4:
+    //   #ifdef FONT4_AVAILABLE
+    //     _font = font4[0];
+    //   #endif
+    //   break;
+    default:
+      _font = font5x7[0]; 
+      break;
+  }
+}
+
+bool TFT_Button::contains(int16_t x, int16_t y) {
+  return (x > (_x - _w / 2) && x < (_x + _w / 2) &&
+          y > (_y - _h / 2) && y < (_y + _h / 2));
+}
+
+void ILI9325Driver::drawCrosshair(int16_t x, int16_t y, uint16_t color) {
+  drawFastHLine(0, y, width(), color);
+  drawFastVLine(x, 0, height(), color);
+}
+
+void ILI9325Driver::waitForTouch(int16_t &x, int16_t &y) {
+  int16_t z;
+  while (readTouch(x, y, z)) { delay(10); }
+  while (!readTouch(x, y, z)) { delay(10); }
+}
+
+uint16_t ILI9325Driver::calibrateTouch(uint16_t *calData, uint16_t color, uint16_t b_color, uint8_t size) {
+  int16_t raw_x, raw_y;
+  uint16_t x_points[2], y_points[2];
+
+  fillScreen(b_color);
+  setTextDatum(MC_DATUM);
+  drawString("Touch Calibration", width() / 2, height() / 2);
+  delay(2000);
+
+  uint8_t radius = size * 2;
+
+  fillScreen(b_color);
+  drawCrosshair(radius, radius, color);
+  waitForTouch(raw_x, raw_y);
+  x_points[0] = raw_x;
+  y_points[0] = raw_y;
+  drawCrosshair(radius, radius, b_color);
+
+  delay(500);
+
+  drawCrosshair(width() - radius, height() - radius, color);
+  waitForTouch(raw_x, raw_y);
+  x_points[1] = raw_x;
+  y_points[1] = raw_y;
+  drawCrosshair(width() - radius, height() - radius, b_color);
+
+  _touch_cal_x_min = min(x_points[0], x_points[1]);
+  _touch_cal_x_max = max(x_points[0], x_points[1]);
+  _touch_cal_y_min = min(y_points[0], y_points[1]);
+  _touch_cal_y_max = max(y_points[0], y_points[1]);
+
+  calData[0] = _touch_cal_x_min;
+  calData[1] = _touch_cal_x_max;
+  calData[2] = _touch_cal_y_min;
+  calData[3] = _touch_cal_y_max;
+  
+  _touch_cal_loaded = true;
+  saveTouchCalibration();
+
+  fillScreen(b_color);
+  drawString("Calibration Complete!", width() / 2, height() / 2);
+  delay(2000);
+  return 0; 
+}
+
+bool ILI9325Driver::loadTouchCalibration() {
+  if (!SPIFFS.begin(true)) {
+    Serial.println("SPIFFS not started!");
+    return false;
+  }
+  
+  if (SPIFFS.exists("/touch.cal")) {
+    File f = SPIFFS.open("/touch.cal", "r");
+    if (f) {
+      if (f.read((uint8_t*)&_touch_cal_x_min, sizeof(_touch_cal_x_min)) &&
+          f.read((uint8_t*)&_touch_cal_x_max, sizeof(_touch_cal_x_max)) &&
+          f.read((uint8_t*)&_touch_cal_y_min, sizeof(_touch_cal_y_min)) &&
+          f.read((uint8_t*)&_touch_cal_y_max, sizeof(_touch_cal_y_max))) {
+        f.close();
+        _touch_cal_loaded = true;
+        Serial.println("Calibration loaded.");
+        return true;
+      }
+    }
+  }
+  Serial.println("Not Found Calibration File.");
+  return false;
+}
+
+void ILI9325Driver::saveTouchCalibration() {
+  if (!_touch_cal_loaded) return;
+  
+  File f = SPIFFS.open("/touch.cal", "w");
+  if (f) {
+    f.write((uint8_t*)&_touch_cal_x_min, sizeof(_touch_cal_x_min));
+    f.write((uint8_t*)&_touch_cal_x_max, sizeof(_touch_cal_x_max));
+    f.write((uint8_t*)&_touch_cal_y_min, sizeof(_touch_cal_y_min));
+    f.write((uint8_t*)&_touch_cal_y_max, sizeof(_touch_cal_y_max));
+    f.close();
+    Serial.println("Touch Calibration saved!");
+  } else {
+    Serial.println("Not saved Calibration File!");
+  }
+}
+
+bool ILI9325Driver::getTouch(uint16_t *x, uint16_t *y, uint16_t threshold) {
+  int16_t raw_x, raw_y, raw_z;
+  if (!readTouch(raw_x, raw_y, raw_z) || raw_z < threshold) {
+    return false;
+  }
+  
+  if (!_touch_cal_loaded) {
+    Serial.println("Warning: Touch detect but not load Calibration!");
+    return false;
+  }
+
+  *x = map(raw_x, _touch_cal_x_min, _touch_cal_x_max, 0, width());
+  *y = map(raw_y, _touch_cal_y_min, _touch_cal_y_max, 0, height());
+
+  // *x = width() - *x; 
+  // *y = height() - *y;
+
+  return true;
+}
+
+void ILI9325Driver::setTouch(uint16_t *calData) {
+  _touch_cal_x_min = calData[0];
+  _touch_cal_x_max = calData[1];
+  _touch_cal_y_min = calData[2];
+  _touch_cal_y_max = calData[3];
+  _touch_cal_loaded = true;
 }
