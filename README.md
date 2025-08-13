@@ -6,7 +6,7 @@ I am working on, for a now only usable with esp32 on arduino
 As soon as posibble I share more detail
 Touch panel not supported in this time.
 
-Youtube tutorial video : 
+Youtube GraphicTest video : 
 
 [![Graphic Test](https://img.youtube.com/vi/0GuNGFi2wqI/0.jpg)](https://www.youtube.com/watch?v=0GuNGFi2wqI)
 
