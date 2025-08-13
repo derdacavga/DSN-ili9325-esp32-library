@@ -8,6 +8,9 @@ Touch panel not supported in this time.
 
 Youtube tutorial video : 
 
+[![Graphic Test](https://img.youtube.com/vi/0GuNGFi2wqI/0.jpg)](https://www.youtube.com/watch?v=0GuNGFi2wqI)
+
+
 Pin Configuration
 
 TFT_D0 ----------- 22
