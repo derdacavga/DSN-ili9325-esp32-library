@@ -41,3 +41,10 @@ GND -------------- GND
 3.3V ------------- 3.3V
 
 Don't use 5V pin
+
+<img src="images/IMG_5133.JPG" alt="Logo" width="350">
+<img src="images/IMG_5134.JPG" alt="Logo" width="350">
+<img src="images/IMG_5135.JPG" alt="Logo" width="350">
+
+<img src="images/IMG_5136.JPG" alt="Logo" width="350">
+<img src="images/IMG_5137.JPG" alt="Logo" width="350">
