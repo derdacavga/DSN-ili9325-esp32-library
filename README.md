@@ -10,6 +10,7 @@ Youtube GraphicTest video :
 
 [![Graphic Test](https://img.youtube.com/vi/0GuNGFi2wqI/0.jpg)](https://www.youtube.com/watch?v=0GuNGFi2wqI)
 
+[![Graphic Test](https://img.youtube.com/vi/ofYUdeQS3A8/0.jpg)](https://youtu.be/ofYUdeQS3A8?feature=shared)
 
 Pin Configuration
 
