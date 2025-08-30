@@ -96,13 +96,7 @@ private:
   int32_t  _vp_h;      
   bool     _vp_enabled;
 
-  uint16_t _touch_cal_x_min, _touch_cal_x_max;
-  uint16_t _touch_cal_y_min, _touch_cal_y_max;
-  bool     _touch_cal_loaded;
-
-  bool readTouch(int16_t &x, int16_t &y, int16_t &z);
   void drawCrosshair(int16_t x, int16_t y, uint16_t color);
-  void waitForTouch(int16_t &x, int16_t &y);
 
   struct MaskPair {
      uint32_t mask_set;
@@ -207,12 +201,6 @@ public:
   void setViewport(int32_t x, int32_t y, int32_t w, int32_t h);
   void resetViewport(void);
   bool isViewport(void);
-
-  bool getTouch(uint16_t *x, uint16_t *y, uint16_t threshold = 600);
-  uint16_t calibrateTouch(uint16_t *calData, uint16_t color, uint16_t b_color, uint8_t size);
-  bool loadTouchCalibration(void);
-  void saveTouchCalibration(void);
-  void setTouch(uint16_t *calData);
 
 };
 
