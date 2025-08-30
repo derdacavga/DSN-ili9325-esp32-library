@@ -46,11 +46,13 @@ void ILI9325Driver::begin() {
   digitalWrite(TFT_CS, HIGH);
   digitalWrite(TFT_WR, HIGH);
   digitalWrite(TFT_RS, HIGH);
-
-  digitalWrite(TFT_RST, LOW);
-  delay(5);
   digitalWrite(TFT_RST, HIGH);
-  delay(120);
+
+  delay(50); 
+  digitalWrite(TFT_RST, LOW);
+  delay(100); 
+  digitalWrite(TFT_RST, HIGH);
+  delay(150); 
 
     startWrite();
 
@@ -840,51 +842,6 @@ int16_t ILI9325Driver::drawString(const String &string, int16_t x, int16_t y) {
   return drawString(string.c_str(), x, y);
 }
 
-bool ILI9325Driver::readTouch(int16_t &x, int16_t &y, int16_t &z) {
-    
-    pinMode(YP_PIN, INPUT);
-    pinMode(YM_PIN, INPUT);
-    digitalWrite(YP_PIN, LOW);
-    digitalWrite(YM_PIN, LOW);
-    
-    pinMode(XP_PIN, OUTPUT);
-    digitalWrite(XP_PIN, HIGH);
-    pinMode(XM_PIN, OUTPUT);
-    digitalWrite(XM_PIN, LOW);
-    
-    delayMicroseconds(20);
-    y = analogRead(YP_PIN);
-
-    pinMode(XP_PIN, INPUT);
-    pinMode(XM_PIN, INPUT);
-    digitalWrite(XP_PIN, LOW);
-    digitalWrite(XM_PIN, LOW);
-
-    pinMode(YP_PIN, OUTPUT);
-    digitalWrite(YP_PIN, HIGH);
-    pinMode(YM_PIN, OUTPUT);
-    digitalWrite(YM_PIN, LOW);
-    
-    delayMicroseconds(20);
-    x = analogRead(XM_PIN);
-
-    pinMode(XP_PIN, OUTPUT);
-    pinMode(YM_PIN, INPUT);
-    digitalWrite(XP_PIN, LOW);
-    digitalWrite(YM_PIN, HIGH); 
-
-    int z1 = analogRead(XM_PIN); 
-    int z2 = analogRead(YP_PIN);
-    
-    z = (4095 - (z2 - z1));
-
-    pinMode(XP_PIN, INPUT);
-    pinMode(YP_PIN, INPUT);
-
-    const int MIN_PRESSURE = 100;
-    return (z > MIN_PRESSURE);
-}
-
 TFT_Button::TFT_Button(void) {
   _tft = nullptr;
   _is_pressed = false;
@@ -918,9 +875,6 @@ void TFT_Button::drawButton(bool inverted) {
 
 bool TFT_Button::isPressed(void) {
   uint16_t touch_x, touch_y;
-  if (_tft->getTouch(&touch_x, &touch_y)) {
-    return contains(touch_x, touch_y);
-  }
   return false;
 }
 
@@ -997,123 +951,4 @@ bool TFT_Button::contains(int16_t x, int16_t y) {
 void ILI9325Driver::drawCrosshair(int16_t x, int16_t y, uint16_t color) {
   drawFastHLine(0, y, width(), color);
   drawFastVLine(x, 0, height(), color);
-}
-
-void ILI9325Driver::waitForTouch(int16_t &x, int16_t &y) {
-  int16_t z;
-  while (readTouch(x, y, z)) { delay(10); }
-  while (!readTouch(x, y, z)) { delay(10); }
-}
-
-uint16_t ILI9325Driver::calibrateTouch(uint16_t *calData, uint16_t color, uint16_t b_color, uint8_t size) {
-  int16_t raw_x, raw_y;
-  uint16_t x_points[2], y_points[2];
-
-  fillScreen(b_color);
-  setTextDatum(MC_DATUM);
-  drawString("Touch Calibration", width() / 2, height() / 2);
-  delay(2000);
-
-  uint8_t radius = size * 2;
-
-  fillScreen(b_color);
-  drawCrosshair(radius, radius, color);
-  waitForTouch(raw_x, raw_y);
-  x_points[0] = raw_x;
-  y_points[0] = raw_y;
-  drawCrosshair(radius, radius, b_color);
-
-  delay(500);
-
-  drawCrosshair(width() - radius, height() - radius, color);
-  waitForTouch(raw_x, raw_y);
-  x_points[1] = raw_x;
-  y_points[1] = raw_y;
-  drawCrosshair(width() - radius, height() - radius, b_color);
-
-  _touch_cal_x_min = min(x_points[0], x_points[1]);
-  _touch_cal_x_max = max(x_points[0], x_points[1]);
-  _touch_cal_y_min = min(y_points[0], y_points[1]);
-  _touch_cal_y_max = max(y_points[0], y_points[1]);
-
-  calData[0] = _touch_cal_x_min;
-  calData[1] = _touch_cal_x_max;
-  calData[2] = _touch_cal_y_min;
-  calData[3] = _touch_cal_y_max;
-  
-  _touch_cal_loaded = true;
-  saveTouchCalibration();
-
-  fillScreen(b_color);
-  drawString("Calibration Complete!", width() / 2, height() / 2);
-  delay(2000);
-  return 0; 
-}
-
-bool ILI9325Driver::loadTouchCalibration() {
-  if (!SPIFFS.begin(true)) {
-    Serial.println("SPIFFS not started!");
-    return false;
-  }
-  
-  if (SPIFFS.exists("/touch.cal")) {
-    File f = SPIFFS.open("/touch.cal", "r");
-    if (f) {
-      if (f.read((uint8_t*)&_touch_cal_x_min, sizeof(_touch_cal_x_min)) &&
-          f.read((uint8_t*)&_touch_cal_x_max, sizeof(_touch_cal_x_max)) &&
-          f.read((uint8_t*)&_touch_cal_y_min, sizeof(_touch_cal_y_min)) &&
-          f.read((uint8_t*)&_touch_cal_y_max, sizeof(_touch_cal_y_max))) {
-        f.close();
-        _touch_cal_loaded = true;
-        Serial.println("Calibration loaded.");
-        return true;
-      }
-    }
-  }
-  Serial.println("Not Found Calibration File.");
-  return false;
-}
-
-void ILI9325Driver::saveTouchCalibration() {
-  if (!_touch_cal_loaded) return;
-  
-  File f = SPIFFS.open("/touch.cal", "w");
-  if (f) {
-    f.write((uint8_t*)&_touch_cal_x_min, sizeof(_touch_cal_x_min));
-    f.write((uint8_t*)&_touch_cal_x_max, sizeof(_touch_cal_x_max));
-    f.write((uint8_t*)&_touch_cal_y_min, sizeof(_touch_cal_y_min));
-    f.write((uint8_t*)&_touch_cal_y_max, sizeof(_touch_cal_y_max));
-    f.close();
-    Serial.println("Touch Calibration saved!");
-  } else {
-    Serial.println("Not saved Calibration File!");
-  }
-}
-
-bool ILI9325Driver::getTouch(uint16_t *x, uint16_t *y, uint16_t threshold) {
-  int16_t raw_x, raw_y, raw_z;
-  if (!readTouch(raw_x, raw_y, raw_z) || raw_z < threshold) {
-    return false;
-  }
-  
-  if (!_touch_cal_loaded) {
-    Serial.println("Warning: Touch detect but not load Calibration!");
-    return false;
-  }
-
-  *x = map(raw_x, _touch_cal_x_min, _touch_cal_x_max, 0, width());
-  *y = map(raw_y, _touch_cal_y_min, _touch_cal_y_max, 0, height());
-
-  // *x = width() - *x; 
-  // *y = height() - *y;
-
-  return true;
-}
-
-void ILI9325Driver::setTouch(uint16_t *calData) {
-  _touch_cal_x_min = calData[0];
-  _touch_cal_x_max = calData[1];
-  _touch_cal_y_min = calData[2];
-  _touch_cal_y_max = calData[3];
-  _touch_cal_loaded = true;
 }
