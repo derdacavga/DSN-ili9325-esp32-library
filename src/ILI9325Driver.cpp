@@ -26,6 +26,9 @@ ILI9325Driver::ILI9325Driver() {
     _textDatum = TL_DATUM;
     _vp_enabled = false;
     _font = font5x7[0];
+
+    int pins[] = { TFT_D0, TFT_D1, TFT_D2, TFT_D3, TFT_D4, TFT_D5, TFT_D6, TFT_D7 };
+    memcpy(_dataPins, pins, sizeof(pins));
 }
 
 void ILI9325Driver::init(){
@@ -33,8 +36,7 @@ void ILI9325Driver::init(){
 }
 
 void ILI9325Driver::begin() {
-  int dataPins[] = { TFT_D0, TFT_D1, TFT_D2, TFT_D3, TFT_D4, TFT_D5, TFT_D6, TFT_D7 };
-  for (int i = 0; i < 8; i++) pinMode(dataPins[i], OUTPUT);
+  for (int i = 0; i < 8; i++) pinMode(_dataPins[i], OUTPUT);
   
   pinMode(TFT_RS, OUTPUT);
   pinMode(TFT_WR, OUTPUT);
@@ -688,17 +690,18 @@ void ILI9325Driver::drawText(int16_t x, int16_t y, const char* text) {
 }
 
 void ILI9325Driver::drawImage(uint16_t x, uint16_t y, uint16_t w, uint16_t h, const uint16_t* data) {
-  if (x >= _width || y >= _height || w == 0 || h == 0) return;
-  if (x + w - 1 >= _width)  w = _width  - x;
-  if (y + h - 1 >= _height) h = _height - y;
+
+  if ((x >= _width) || (y >= _height) || w == 0 || h == 0) return;
+  if ((x + w - 1) >= _width)  w = _width  - x;
+  if ((y + h - 1) >= _height) h = _height - y;
 
   startWrite();
+  
   setAddrWindow(x, y, x + w - 1, y + h - 1);
 
   REG_WRITE(GPIO_OUT_W1TS_REG, RS_MASK);
 
   uint32_t totalPixels = (uint32_t)w * h;
-  
   for (uint32_t i = 0; i < totalPixels; i++) {
     uint16_t color = data[i];
     
