@@ -21,11 +21,6 @@
 #define TFT_RST 14
 #define TFT_RD 2
 
-#define YP_PIN 32
-#define XM_PIN 23
-#define YM_PIN 34
-#define XP_PIN 35
-
 #define CS_MASK (1UL << TFT_CS)
 #define RS_MASK (1UL << TFT_RS)
 #define WR_MASK (1UL << TFT_WR)
@@ -87,6 +82,8 @@ private:
   int16_t  _cursorX; 
   int16_t  _cursorY; 
   uint8_t  _textDatum;
+
+  int _dataPins[8];
 
   const uint8_t *_font;
 
