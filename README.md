@@ -12,6 +12,8 @@ Youtube GraphicTest video :
 
 [![Graphic Test](https://img.youtube.com/vi/ofYUdeQS3A8/0.jpg)](https://youtu.be/ofYUdeQS3A8?feature=shared)
 
+[![New Function](https://img.youtube.com/vi/vovzt9BcFc8/0.jpg)](https://youtu.be/vovzt9BcFc8?feature=shared)
+
 Pin Configuration
 
 TFT_D0 ----------- 22
